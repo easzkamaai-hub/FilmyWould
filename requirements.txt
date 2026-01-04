@@ -1,0 +1,6 @@
+pyrogram>=2.0
+tgcrypto>=1.2.2
+aiohttp>=3.8
+python-dotenv>=0.21.0
+rapidfuzz>=2.3.0
+psycopg2-binary>=2.9.6
