@@ -82,11 +82,11 @@ async def text_search_handler(client, message):
     items, total = utils.split_into_buttons(results, page=1)
     kb = keyboards.search_results_keyboard(items, 1, total)
 
-    await client.send_message(
-        chat_id=message.chat.id,
-        text=templates.SEARCH_HEADER + f"Results for : {query}",
-        reply_markup=kb
-    )
+await client.send_message(
+    chat_id=message.chat.id,
+    text=templates.SEARCH_HEADER + f"Results for : {query}",
+    reply_markup=kb
+)
 else:
     await message.reply_text(
         templates.NOT_FOUND_TEXT,
@@ -124,14 +124,20 @@ async def callback_handler(client, callback_query):
             is_private = True
         caption = f"<b>{details['title']}</b>\n{(details['language'] or '').upper()} • {details['year']} • ⭐ {details['rating']} \nGenres: {details['genres']}\n\n{details['overview']}\n\nJoin Us : {config.ADMIN or '@M2LiNKS'}"
         kb = keyboards.movie_detail_keyboard(movie_id, website=config.WEBSITE, qualities=qualities, is_private=is_private, join_username=config.ADMIN or "@M2LiNKS")
-        if details["poster"]:
-            await callback_query.message.reply_photo(photo=details["poster"], caption=caption, reply_markup=kb, parse_mode="HTML")
-        else:await callback_query.message.reply_photo(
-    photo=details["poster"],
-    caption=caption,
-    reply_markup=kb,
-    parse_mode="HTML"
-        )
+if details.get("poster"):
+    await callback_query.message.reply_photo(
+        details["poster"],
+        caption=caption,
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+else:
+    await callback_query.message.reply_photo(
+        photo=details["backdrop"],
+        caption=caption,
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
         await callback_query.answer()
         return
 
