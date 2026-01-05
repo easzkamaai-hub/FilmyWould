@@ -74,16 +74,24 @@ async def text_search_handler(client, message):
     results = []
     data = await tmdb.search_tmdb(query, config.TMDB_API_KEY, page=1)
     if data and data.get("results"):
-        for r in data["results"][:50]:
-            label = f"{r.get('title')} ({(r.get('release_date') or '')[:4]})"
-            results.append({"id": r["id"], "label": label})
-        SEARCH_CACHE[user_id] = results
-        items, total = utils.split_into_buttons(results, page=1)
-        kb = keyboards.search_results_keyboard(items, 1, total)
-        await client.send_message(chat_id=message.chat.id, text=templates.SEARCH_HEADER + f"Results for: {query}", reply_markup=kb)
-    else:
-        await message.reply_text(templates.NOT_FOUND_TEXT), reply_markup=keyboards.not_found_keyboard()
+    for r in data["results"][:50]:
+        label = f"{r.get('title')} ({(r.get('release_date') or '')[:4]})"
+        results.append({"id": r["id"], "label": label})
 
+    SEARCH_CACHE[user_id] = results
+    items, total = utils.split_into_buttons(results, page=1)
+    kb = keyboards.search_results_keyboard(items, 1, total)
+
+    await client.send_message(
+        chat_id=message.chat.id,
+        text=templates.SEARCH_HEADER + f"Results for : {query}",
+        reply_markup=kb
+    )
+else:
+    await message.reply_text(
+        templates.NOT_FOUND_TEXT,
+        reply_markup=keyboards.not_found_keyboard()
+    )
 @app.on_callback_query()
 async def callback_handler(client, callback_query):
     data = callback_query.data or ""
