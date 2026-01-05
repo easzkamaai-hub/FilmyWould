@@ -173,15 +173,13 @@ async def callback_handler(client, callback_query):
             await callback_query.message.reply_photo(
                 details["poster"],
                 caption=caption,
-                reply_markup=kb,
-                parse_mode="HTML"
+                reply_markup=kb
             )
         else:
             await callback_query.message.reply_photo(
                 photo=details["backdrop"],
                 caption=caption,
-                reply_markup=kb,
-                parse_mode="HTML"
+                reply_markup=kb
             )
 
         await callback_query.answer()
