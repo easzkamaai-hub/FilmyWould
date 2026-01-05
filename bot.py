@@ -87,7 +87,7 @@ async def private_channel_forwarded_handler(client, message):
 
 # ---------------- TEXT SEARCH (FIXED) ---------------- #
 
-@app.on_message(filters.text & ~filters.command & ~filters.bot)
+@app.on_message(filters.text & ~filters.command)
 async def text_search_handler(client, message):
     query = message.text.strip()
     user_id = message.from_user.id
