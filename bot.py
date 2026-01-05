@@ -1,19 +1,13 @@
 import asyncio
+import os
 
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from urllib.parse import quote_plus
 
-import config
-import tmdb
-import keyboards
-import templates
-import utils
-import storage
-
+import config, tmdb, keyboards, templates, utils, storage
 
 app = Client(
-    "FilmyWould",
+    "FilmyWorld",
     api_id=config.API_ID,
     api_hash=config.API_HASH,
     bot_token=config.BOT_TOKEN
@@ -21,46 +15,46 @@ app = Client(
 
 SEARCH_CACHE = {}
 
+# -------------------- ADMIN LIST --------------------
+def get_admins():
+    raw = config.ADMIN or ""
+    return [int(x) for x in raw.split() if x.isdigit()]
 
-# ---------------- PRIVATE CHANNEL LIST ---------------- #
+ADMIN_IDS = get_admins()
 
+# -------------------- PRIVATE CHANNELS --------------------
 def parse_private_channel_list():
     raw = config.PRIVATE_CHANNELS or ""
-    items = [x.strip() for x in raw.split(",") if x.strip()]
     out = []
-    for it in items:
+    for x in raw.split():
         try:
-            out.append(int(it))
+            out.append(int(x))
         except:
-            out.append(it)
+            out.append(x)
     return out
-
 
 PRIVATE_LIST = parse_private_channel_list()
 
-
-# ---------------- START ---------------- #
-
+# -------------------- START --------------------
 @app.on_message(filters.command("start"))
 async def start_handler(client, message):
-    user = message.from_user
     caption = templates.START_TEXT.format(
-        first_name=user.first_name or "Friend"
+        first_name=message.from_user.first_name or "Friend"
     )
-
     await message.reply_text(
         caption,
-        reply_markup=keyboards.start_keyboard()
+        reply_markup=keyboards.start_keyboard(
+            join_username=config.ADMIN or "@MLinks"
+        )
     )
 
-
-# ---------------- SAVE FROM PRIVATE CHANNEL ---------------- #
-
+# -------------------- PRIVATE CHANNEL FORWARD --------------------
 @app.on_message(
     filters.chat(PRIVATE_LIST)
     & (filters.document | filters.video | filters.audio | filters.photo)
 )
 async def private_channel_forwarded_handler(client, message):
+
     caption = (message.caption or "").strip()
     filename = None
 
@@ -84,61 +78,57 @@ async def private_channel_forwarded_handler(client, message):
         message.message_id
     )
 
-
-# ---------------- TEXT SEARCH (FIXED) ---------------- #
-
-@app.on_message(filters.text & ~filters.command)
+# -------------------- SEARCH --------------------
+@app.on_message(filters.text & ~filters.bot)
 async def text_search_handler(client, message):
     query = message.text.strip()
     user_id = message.from_user.id
-    results = []
 
     data = await tmdb.search_tmdb(query, config.TMDB_API_KEY, page=1)
 
-    if data and data.get("results"):
-        for r in data["results"][:50]:
-            title = r.get("title") or r.get("name")
-            year = (r.get("release_date") or "")[:4]
-            label = f"{title} ({year})" if year else title
-
-            results.append({
-                "id": r["id"],
-                "label": label
-            })
-
-        SEARCH_CACHE[user_id] = results
-        items, total = utils.split_into_buttons(results, page=1)
-        kb = keyboards.search_results_keyboard(items, 1, total)
-
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=f"🔍 Results for : {query}",
-            reply_markup=kb
-        )
-    else:
+    if not data or not data.get("results"):
         await message.reply_text(
             templates.NOT_FOUND_TEXT,
             reply_markup=keyboards.not_found_keyboard()
         )
+        return
 
+    results = []
+    for r in data["results"][:50]:
+        year = (r.get("release_date") or "")[:4]
+        label = f"{r.get('title')}" + (f" ({year})" if year else "")
+        results.append({
+            "id": r["id"],
+            "label": label
+        })
 
-# ---------------- CALLBACK ---------------- #
+    SEARCH_CACHE[user_id] = results
 
+    items, total = utils.split_into_buttons(results, page=1)
+    kb = keyboards.search_results_keyboard(items, 1, total)
+
+    await message.reply_text(
+        f"🔍 Results for: **{query}**",
+        reply_markup=kb
+    )
+
+# -------------------- CALLBACK --------------------
 @app.on_callback_query()
 async def callback_handler(client, callback_query):
-    data = callback_query.data
+    data = callback_query.data or ""
     user_id = callback_query.from_user.id
 
+    # Pagination
     if data.startswith("page:"):
         page = int(data.split(":")[1])
         results = SEARCH_CACHE.get(user_id, [])
         items, total = utils.split_into_buttons(results, page=page)
         kb = keyboards.search_results_keyboard(items, page, total)
-
         await callback_query.edit_message_reply_markup(reply_markup=kb)
         await callback_query.answer()
         return
 
+    # Movie details
     if data.startswith("movie:"):
         movie_id = int(data.split(":")[1])
         details = await tmdb.get_movie_details(movie_id, config.TMDB_API_KEY)
@@ -147,60 +137,93 @@ async def callback_handler(client, callback_query):
             await callback_query.answer("Details not found", show_alert=True)
             return
 
-        title = details.get("title") or "Unknown"
-        year = details.get("year") or ""
-        language = (details.get("language") or "").upper()
-        rating = details.get("rating") or "N/A"
-        genres = ", ".join(details.get("genres", []))
+        title = details.get("title") or "Movie"
+        key = utils.slugify(title)
+        local = storage.get_movie(key)
 
-        caption = (
-            f"🎬 {title}\n"
-            f"📅 Release Year : {year}\n"
-            f"🌐 Language : {language}\n"
-            f"⭐ Rating : {rating}\n"
-            f"🎭 Genre : {genres}"
-        )
+        qualities = None
+        is_private = False
 
-        watch_url = f"{config.WEBSITE}?search={quote_plus(title)}"
-        kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("▶️ WATCH NOW", url=watch_url)]]
+        if local and local.get("qualities"):
+            qualities = []
+            for idx, q in enumerate(local["qualities"]):
+                qualities.append({
+                    "label": q["quality"],
+                    "cb": f"watch:{key}:{idx}"
+                })
+            is_private = True
+
+        caption = f"🎬 **{title}**"
+
+        kb = keyboards.movie_detail_keyboard(
+            movie_id=movie_id,
+            website=f"{config.WEBSITE}?s={title}",
+            qualities=qualities,
+            is_private=is_private
         )
 
         if details.get("poster"):
             await callback_query.message.reply_photo(
-                photo=details["poster"],
+                details["poster"],
                 caption=caption,
-                reply_markup=kb
+                reply_markup=kb,
+                parse_mode="Markdown"
             )
         else:
             await callback_query.message.reply_text(
                 caption,
-                reply_markup=kb
+                reply_markup=kb,
+                parse_mode="Markdown"
             )
 
         await callback_query.answer()
         return
 
+    # Watch
+    if data.startswith("watch:"):
+        parts = data.split(":")
+        key = parts[1]
+        idx = int(parts[2])
 
-# ---------------- ADMIN COMMANDS (FIXED) ---------------- #
+        movie = storage.get_movie(key)
+        if not movie:
+            await callback_query.answer("Not available", show_alert=True)
+            return
 
-@app.on_message(filters.command("admin") & filters.user(int(config.ADMIN)))
+        q = movie["qualities"][idx]
+
+        try:
+            await client.copy_message(
+                chat_id=callback_query.message.chat.id,
+                from_chat_id=q["chat_id"],
+                message_id=q["message_id"]
+            )
+            await callback_query.answer("Here is your movie 🎥")
+        except:
+            await callback_query.answer("Failed to fetch", show_alert=True)
+
+        return
+
+# -------------------- ADMIN PANEL (FIXED) --------------------
+@app.on_message(filters.command("admin") & filters.user(ADMIN_IDS))
 async def admin_panel(client, message):
-    await message.reply_text(
-        "👮 Admin Commands\n\n"
-        "/stats - Bot stats"
+    text = (
+        "👮 **Admin Commands**\n\n"
+        "/stats - Bot stats\n"
+        "/channels - configured channels\n"
+        "/broadcast <text>\n"
+        "/shutdown"
     )
+    await message.reply_text(text)
 
-
-@app.on_message(filters.command("stats") & filters.user(int(config.ADMIN)))
+@app.on_message(filters.command("stats") & filters.user(ADMIN_IDS))
 async def stats_cmd(client, message):
-    await message.reply_text(
-        f"📊 Bot Stats\n\n"
-        f"Cached Searches : {len(SEARCH_CACHE)}\n"
-        f"Website : {config.WEBSITE}"
+    text = (
+        "📊 **Bot Stats**\n\n"
+        f"Cached Searches: {len(SEARCH_CACHE)}\n"
+        f"Website: {config.WEBSITE}"
     )
+    await message.reply_text(text)
 
-
-# ---------------- RUN ---------------- #
-
+# -------------------- RUN --------------------
 app.run()
