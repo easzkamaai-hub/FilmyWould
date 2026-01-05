@@ -27,11 +27,9 @@ PRIVATE_LIST = parse_private_channel_list()
 async def start_handler(client, message):
     user = message.from_user
     caption = templates.START_TEXT.format(first_name=user.first_name or "Friend")
-    await client.send_photo(
-        chat_id=message.chat.id,
-        photo="assets/photo1.jpg",
-        caption=caption,
-        reply_markup=keyboards.start_keyboard(join_username=config.ADMIN or "@M2LiNKS")
+    await message.reply_text(
+        caption,
+        reply_markup=keyboards.start_keyboard(join_username=config.ADMIN or "@MLinks")
     )
 
 @app.on_message(filters.chat(PRIVATE_LIST) & (filters.document | filters.video | filters.audio | filters.photo))
@@ -84,7 +82,7 @@ async def text_search_handler(client, message):
         kb = keyboards.search_results_keyboard(items, 1, total)
         await client.send_message(chat_id=message.chat.id, text=templates.SEARCH_HEADER + f"Results for: {query}", reply_markup=kb)
     else:
-        await client.send_photo(chat_id=message.chat.id, photo="assets/photo4.jpg", caption=templates.NOT_FOUND_TEXT, reply_markup=keyboards.not_found_keyboard())
+        await message.reply_text(templates.NOT_FOUND_TEXT), reply_markup=keyboards.not_found_keyboard())
 
 @app.on_callback_query()
 async def callback_handler(client, callback_query):
@@ -119,9 +117,13 @@ async def callback_handler(client, callback_query):
         caption = f"<b>{details['title']}</b>\n{(details['language'] or '').upper()} • {details['year']} • ⭐ {details['rating']} \nGenres: {details['genres']}\n\n{details['overview']}\n\nJoin Us : {config.ADMIN or '@M2LiNKS'}"
         kb = keyboards.movie_detail_keyboard(movie_id, website=config.WEBSITE, qualities=qualities, is_private=is_private, join_username=config.ADMIN or "@M2LiNKS")
         if details["poster"]:
-            await callback_query.message.reply_photo(photo=details["poster"], caption=caption, reply_markup=kb, parse_mode="html")
-        else:
-            await callback_query.message.reply_text(text=caption, reply_markup=kb, parse_mode="html")
+            await callback_query.message.reply_photo(photo=details["poster"], caption=caption, reply_markup=kb, parse_mode="HTML")
+        else:await callback_query.message.reply_photo(
+    photo=details["poster"],
+    caption=caption,
+    reply_markup=kb,
+    parse_mode="HTML"
+        )
         await callback_query.answer()
         return
 
