@@ -76,7 +76,10 @@ async def text_search_handler(client, message):
     if data and data.get("results"):
     for r in data["results"][:50]:
         label = f"{r.get('title')} ({(r.get('release_date') or '')[:4]})"
-        results.append({"id": r["id"], "label": label})
+        results.append({
+            "id": r["id"],
+            "label": label
+        })
 
     SEARCH_CACHE[user_id] = results
     items, total = utils.split_into_buttons(results, page=1)
