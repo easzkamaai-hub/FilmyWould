@@ -82,7 +82,7 @@ async def text_search_handler(client, message):
         kb = keyboards.search_results_keyboard(items, 1, total)
         await client.send_message(chat_id=message.chat.id, text=templates.SEARCH_HEADER + f"Results for: {query}", reply_markup=kb)
     else:
-        await message.reply_text(templates.NOT_FOUND_TEXT), reply_markup=keyboards.not_found_keyboard())
+        await message.reply_text(templates.NOT_FOUND_TEXT), reply_markup=keyboards.not_found_keyboard()
 
 @app.on_callback_query()
 async def callback_handler(client, callback_query):
