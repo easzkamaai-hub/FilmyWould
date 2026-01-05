@@ -84,27 +84,8 @@ async def private_channel_forwarded_handler(client, message):
         message.message_id
     )
 
-    if config.BACKUP_CHANNEL:
-        try:
-            await client.copy_message(
-                chat_id=config.BACKUP_CHANNEL,
-                from_chat_id=message.chat.id,
-                message_id=message.message_id
-            )
-        except:
-            pass
 
-    if config.LOG_CHANNEL:
-        try:
-            await client.send_message(
-                config.LOG_CHANNEL,
-                f"Saved movie: {base_title} [{quality}] | key: {key}"
-            )
-        except:
-            pass
-
-
-# ---------------- TEXT SEARCH ---------------- #
+# ---------------- TEXT SEARCH (FIXED) ---------------- #
 
 @app.on_message(filters.text & ~filters.command & ~filters.bot)
 async def text_search_handler(client, message):
@@ -119,6 +100,7 @@ async def text_search_handler(client, message):
             title = r.get("title") or r.get("name")
             year = (r.get("release_date") or "")[:4]
             label = f"{title} ({year})" if year else title
+
             results.append({
                 "id": r["id"],
                 "label": label
@@ -130,7 +112,7 @@ async def text_search_handler(client, message):
 
         await client.send_message(
             chat_id=message.chat.id,
-            text=f"🔍 Results for: {query}",
+            text=f"🔍 Results for : {query}",
             reply_markup=kb
         )
     else:
@@ -147,7 +129,6 @@ async def callback_handler(client, callback_query):
     data = callback_query.data
     user_id = callback_query.from_user.id
 
-    # -------- PAGINATION -------- #
     if data.startswith("page:"):
         page = int(data.split(":")[1])
         results = SEARCH_CACHE.get(user_id, [])
@@ -158,7 +139,6 @@ async def callback_handler(client, callback_query):
         await callback_query.answer()
         return
 
-    # -------- MOVIE DETAILS -------- #
     if data.startswith("movie:"):
         movie_id = int(data.split(":")[1])
         details = await tmdb.get_movie_details(movie_id, config.TMDB_API_KEY)
@@ -175,10 +155,10 @@ async def callback_handler(client, callback_query):
 
         caption = (
             f"🎬 {title}\n"
-            f"📅 Year: {year}\n"
-            f"🌐 Language: {language}\n"
-            f"⭐ Rating: {rating}\n"
-            f"🎭 Genre: {genres}"
+            f"📅 Release Year : {year}\n"
+            f"🌐 Language : {language}\n"
+            f"⭐ Rating : {rating}\n"
+            f"🎭 Genre : {genres}"
         )
 
         watch_url = f"{config.WEBSITE}?search={quote_plus(title)}"
@@ -201,35 +181,24 @@ async def callback_handler(client, callback_query):
         await callback_query.answer()
         return
 
-    await callback_query.answer()
 
-
-# ---------------- ADMIN PANEL ---------------- #
+# ---------------- ADMIN COMMANDS (FIXED) ---------------- #
 
 @app.on_message(filters.command("admin") & filters.user(int(config.ADMIN)))
 async def admin_panel(client, message):
-    text = (
+    await message.reply_text(
         "👮 Admin Commands\n\n"
-        "/stats - bot stats\n"
-        "/shutdown - stop bot"
+        "/stats - Bot stats"
     )
-    await message.reply_text(text)
 
 
 @app.on_message(filters.command("stats") & filters.user(int(config.ADMIN)))
 async def stats_cmd(client, message):
-    text = (
-        "📊 Bot Stats\n\n"
-        f"Cached Searches: {len(SEARCH_CACHE)}\n"
-        f"Website: {config.WEBSITE}"
+    await message.reply_text(
+        f"📊 Bot Stats\n\n"
+        f"Cached Searches : {len(SEARCH_CACHE)}\n"
+        f"Website : {config.WEBSITE}"
     )
-    await message.reply_text(text)
-
-
-@app.on_message(filters.command("shutdown") & filters.user(int(config.ADMIN)))
-async def shutdown_cmd(client, message):
-    await message.reply_text("Bot shutting down...")
-    await app.stop()
 
 
 # ---------------- RUN ---------------- #
